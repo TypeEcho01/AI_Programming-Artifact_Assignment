@@ -5,6 +5,8 @@ A terminal-based Python card game collection where you can play:
 - Blackjack
 - War
 - Go Fish
+- Five-Card Poker (showdown)
+- Baccarat
 
 ## Run
 

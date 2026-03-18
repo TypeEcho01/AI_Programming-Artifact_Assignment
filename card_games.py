@@ -2,16 +2,18 @@
 """Terminal card game hub with multiple popular card games.
 
 Games included:
-1) Blackjack (player vs dealer)
-2) War (player vs computer)
-3) Go Fish (player vs computer)
+1) Blackjack
+2) War
+3) Go Fish
+4) Five-Card Poker (showdown)
+5) Baccarat
 """
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 import random
-from collections import defaultdict
 from typing import Iterable, List
 
 
@@ -104,7 +106,7 @@ def play_blackjack() -> None:
 
     player_total = blackjack_hand_value(player)
 
-    print(f"\nFinal hands:")
+    print("\nFinal hands:")
     print(f"You:    {', '.join(map(str, player))} (total: {player_total})")
     print(f"Dealer: {', '.join(map(str, dealer))} (total: {dealer_total})")
 
@@ -344,13 +346,160 @@ def play_go_fish() -> None:
         print("Go Fish ends in a tie.")
 
 
+# ------------------------ Five-Card Poker Showdown --------------------------
+def hand_rank_five_card_poker(hand: list[Card]) -> tuple[int, list[int]]:
+    """Return comparable rank tuple: (category, tiebreakers).
+
+    Higher category is better.
+    Categories:
+    8 Straight Flush, 7 Four of a Kind, 6 Full House, 5 Flush,
+    4 Straight, 3 Three of a Kind, 2 Two Pair, 1 One Pair, 0 High Card.
+    """
+
+    values = sorted((RANK_VALUES[c.rank] for c in hand), reverse=True)
+    counts = Counter(values)
+    ordered_by_count_then_value = sorted(counts.items(), key=lambda p: (p[1], p[0]), reverse=True)
+
+    is_flush = len({card.suit for card in hand}) == 1
+
+    unique_values = sorted(set(values))
+    is_wheel = unique_values == [2, 3, 4, 5, 14]
+    is_straight = len(unique_values) == 5 and (
+        unique_values[-1] - unique_values[0] == 4 or is_wheel
+    )
+    straight_high = 5 if is_wheel else max(unique_values)
+
+    if is_straight and is_flush:
+        return 8, [straight_high]
+    if 4 in counts.values():
+        four_val = [v for v, c in counts.items() if c == 4][0]
+        kicker = [v for v, c in counts.items() if c == 1][0]
+        return 7, [four_val, kicker]
+    if sorted(counts.values()) == [2, 3]:
+        trip = [v for v, c in counts.items() if c == 3][0]
+        pair = [v for v, c in counts.items() if c == 2][0]
+        return 6, [trip, pair]
+    if is_flush:
+        return 5, sorted(values, reverse=True)
+    if is_straight:
+        return 4, [straight_high]
+    if 3 in counts.values():
+        trip = [v for v, c in counts.items() if c == 3][0]
+        kickers = sorted([v for v, c in counts.items() if c == 1], reverse=True)
+        return 3, [trip] + kickers
+    if list(counts.values()).count(2) == 2:
+        pairs = sorted([v for v, c in counts.items() if c == 2], reverse=True)
+        kicker = [v for v, c in counts.items() if c == 1][0]
+        return 2, pairs + [kicker]
+    if 2 in counts.values():
+        pair = [v for v, c in counts.items() if c == 2][0]
+        kickers = sorted([v for v, c in counts.items() if c == 1], reverse=True)
+        return 1, [pair] + kickers
+
+    high_cards = [v for v, _ in ordered_by_count_then_value]
+    return 0, sorted(high_cards, reverse=True)
+
+
+def poker_category_name(category: int) -> str:
+    names = {
+        8: "Straight Flush",
+        7: "Four of a Kind",
+        6: "Full House",
+        5: "Flush",
+        4: "Straight",
+        3: "Three of a Kind",
+        2: "Two Pair",
+        1: "One Pair",
+        0: "High Card",
+    }
+    return names[category]
+
+
+def play_five_card_poker() -> None:
+    deck = Deck()
+    player = deck.draw_many(5)
+    cpu = deck.draw_many(5)
+
+    player_score = hand_rank_five_card_poker(player)
+    cpu_score = hand_rank_five_card_poker(cpu)
+
+    print("\n=== Five-Card Poker (Showdown) ===")
+    print(f"Your hand: {', '.join(map(str, player))}")
+    print(f"Computer hand: {', '.join(map(str, cpu))}")
+    print(f"Your rank: {poker_category_name(player_score[0])}")
+    print(f"Computer rank: {poker_category_name(cpu_score[0])}")
+
+    if player_score > cpu_score:
+        print("You win the poker showdown!")
+    elif cpu_score > player_score:
+        print("Computer wins the poker showdown.")
+    else:
+        print("Poker showdown is a tie.")
+
+
+# ------------------------------- Baccarat -----------------------------------
+def baccarat_card_value(card: Card) -> int:
+    if card.rank in {"10", "J", "Q", "K"}:
+        return 0
+    if card.rank == "A":
+        return 1
+    return int(card.rank)
+
+
+def baccarat_hand_total(cards: Iterable[Card]) -> int:
+    return sum(baccarat_card_value(card) for card in cards) % 10
+
+
+def play_baccarat() -> None:
+    deck = Deck()
+    player = deck.draw_many(2)
+    banker = deck.draw_many(2)
+
+    print("\n=== Baccarat ===")
+    bet = input("Bet on player, banker, or tie? [p/b/t]: ").strip().lower()
+    if bet not in {"p", "b", "t"}:
+        print("Invalid bet choice. Returning to menu.")
+        return
+
+    player_total = baccarat_hand_total(player)
+    banker_total = baccarat_hand_total(banker)
+
+    # Simplified third-card rules.
+    if player_total <= 5:
+        player.append(deck.draw())
+        player_total = baccarat_hand_total(player)
+    if banker_total <= 5:
+        banker.append(deck.draw())
+        banker_total = baccarat_hand_total(banker)
+
+    print(f"Player hand: {', '.join(map(str, player))} -> total {player_total}")
+    print(f"Banker hand: {', '.join(map(str, banker))} -> total {banker_total}")
+
+    if player_total > banker_total:
+        winner = "p"
+        print("Player wins.")
+    elif banker_total > player_total:
+        winner = "b"
+        print("Banker wins.")
+    else:
+        winner = "t"
+        print("Tie.")
+
+    if bet == winner:
+        print("Your bet was correct!")
+    else:
+        print("Your bet did not win this round.")
+
+
 # ------------------------------ Main Menu ----------------------------------
 def show_menu() -> None:
     print("\n=== Card Game Hub ===")
     print("1) Blackjack")
     print("2) War")
     print("3) Go Fish")
-    print("4) Quit")
+    print("4) Five-Card Poker")
+    print("5) Baccarat")
+    print("6) Quit")
 
 
 def main() -> None:
@@ -359,7 +508,7 @@ def main() -> None:
 
     while True:
         show_menu()
-        choice = input("Choose a game [1-4]: ").strip()
+        choice = input("Choose a game [1-6]: ").strip()
 
         if choice == "1":
             play_blackjack()
@@ -368,10 +517,14 @@ def main() -> None:
         elif choice == "3":
             play_go_fish()
         elif choice == "4":
+            play_five_card_poker()
+        elif choice == "5":
+            play_baccarat()
+        elif choice == "6":
             print("Goodbye!")
             return
         else:
-            print("Invalid choice. Please select 1, 2, 3, or 4.")
+            print("Invalid choice. Please select 1, 2, 3, 4, 5, or 6.")
 
 
 if __name__ == "__main__":
