@@ -69,7 +69,7 @@ def blackjack_hand_value(cards: Iterable[Card]) -> int:
     return total
 
 
-def play_blackjack() -> None:
+def play_blackjack() -> str:
     deck = Deck()
     player = deck.draw_many(2)
     dealer = deck.draw_many(2)
@@ -85,7 +85,7 @@ def play_blackjack() -> None:
 
         if player_total > 21:
             print("Bust! Dealer wins.")
-            return
+            return "loss"
 
         move = input("Hit or stand? [h/s]: ").strip().lower()
         if move == "h":
@@ -112,12 +112,16 @@ def play_blackjack() -> None:
 
     if dealer_total > 21:
         print("Dealer busts. You win!")
+        return "win"
     elif player_total > dealer_total:
         print("You win!")
+        return "win"
     elif dealer_total > player_total:
         print("Dealer wins.")
+        return "loss"
     else:
         print("Push (tie).")
+        return "tie"
 
 
 # ------------------------------- War ---------------------------------------
@@ -127,7 +131,7 @@ def compare_war_cards(player_card: Card, cpu_card: Card) -> int:
     return (pv > cv) - (pv < cv)
 
 
-def play_war() -> None:
+def play_war() -> str:
     deck = Deck()
     half = len(deck.cards) // 2
     player_stack = deck.cards[:half]
@@ -162,10 +166,10 @@ def play_war() -> None:
             while True:
                 if len(player_stack) < 2:
                     print("You don't have enough cards for war. Computer wins the game.")
-                    return
+                    return "loss"
                 if len(cpu_stack) < 2:
                     print("Computer doesn't have enough cards for war. You win the game!")
-                    return
+                    return "win"
 
                 war_pile.append(player_stack.pop(0))
                 war_pile.append(cpu_stack.pop(0))
@@ -191,12 +195,14 @@ def play_war() -> None:
 
         if rounds >= 200:
             print("Reached round cap (200). Game ends in a draw to prevent infinite play.")
-            return
+            return "tie"
 
     if player_stack:
         print("\nYou win the game of War!")
+        return "win"
     else:
         print("\nComputer wins the game of War.")
+        return "loss"
 
 
 # ------------------------------ Go Fish ------------------------------------
@@ -255,7 +261,7 @@ def choose_cpu_rank(cpu_hand: list[Card]) -> str:
     return random.choice(candidates)
 
 
-def play_go_fish() -> None:
+def play_go_fish() -> str:
     deck = Deck()
     player, cpu = deal_go_fish_hands(deck)
     player_books: list[str] = []
@@ -340,10 +346,13 @@ def play_go_fish() -> None:
 
     if len(player_books) > len(cpu_books):
         print("You win Go Fish!")
+        return "win"
     elif len(cpu_books) > len(player_books):
         print("Computer wins Go Fish.")
+        return "loss"
     else:
         print("Go Fish ends in a tie.")
+        return "tie"
 
 
 # ------------------------ Five-Card Poker Showdown --------------------------
@@ -415,7 +424,7 @@ def poker_category_name(category: int) -> str:
     return names[category]
 
 
-def play_five_card_poker() -> None:
+def play_five_card_poker() -> str:
     deck = Deck()
     player = deck.draw_many(5)
     cpu = deck.draw_many(5)
@@ -431,10 +440,13 @@ def play_five_card_poker() -> None:
 
     if player_score > cpu_score:
         print("You win the poker showdown!")
+        return "win"
     elif cpu_score > player_score:
         print("Computer wins the poker showdown.")
+        return "loss"
     else:
         print("Poker showdown is a tie.")
+        return "tie"
 
 
 # ------------------------------- Baccarat -----------------------------------
@@ -450,7 +462,7 @@ def baccarat_hand_total(cards: Iterable[Card]) -> int:
     return sum(baccarat_card_value(card) for card in cards) % 10
 
 
-def play_baccarat() -> None:
+def play_baccarat() -> str:
     deck = Deck()
     player = deck.draw_many(2)
     banker = deck.draw_many(2)
@@ -459,7 +471,7 @@ def play_baccarat() -> None:
     bet = input("Bet on player, banker, or tie? [p/b/t]: ").strip().lower()
     if bet not in {"p", "b", "t"}:
         print("Invalid bet choice. Returning to menu.")
-        return
+        return "invalid"
 
     player_total = baccarat_hand_total(player)
     banker_total = baccarat_hand_total(banker)
@@ -487,11 +499,46 @@ def play_baccarat() -> None:
 
     if bet == winner:
         print("Your bet was correct!")
+        return "win"
     else:
         print("Your bet did not win this round.")
+        return "loss"
 
 
 # ------------------------------ Main Menu ----------------------------------
+GAME_KEYS = ["blackjack", "war", "go_fish", "five_card_poker", "baccarat"]
+GAME_LABELS = {
+    "blackjack": "Blackjack",
+    "war": "War",
+    "go_fish": "Go Fish",
+    "five_card_poker": "Five-Card Poker",
+    "baccarat": "Baccarat",
+}
+
+
+def new_stats_tracker() -> dict[str, dict[str, int]]:
+    return {game: {"wins": 0, "losses": 0, "ties": 0} for game in GAME_KEYS}
+
+
+def record_result(stats: dict[str, dict[str, int]], game_key: str, result: str) -> None:
+    if result == "win":
+        stats[game_key]["wins"] += 1
+    elif result == "loss":
+        stats[game_key]["losses"] += 1
+    elif result == "tie":
+        stats[game_key]["ties"] += 1
+
+
+def print_stats(stats: dict[str, dict[str, int]]) -> None:
+    print("\n=== Session Record ===")
+    for game_key in GAME_KEYS:
+        game_stats = stats[game_key]
+        print(
+            f"{GAME_LABELS[game_key]} -> "
+            f"Wins: {game_stats['wins']} | Losses: {game_stats['losses']} | Ties: {game_stats['ties']}"
+        )
+
+
 def show_menu() -> None:
     print("\n=== Card Game Hub ===")
     print("1) Blackjack")
@@ -499,32 +546,40 @@ def show_menu() -> None:
     print("3) Go Fish")
     print("4) Five-Card Poker")
     print("5) Baccarat")
-    print("6) Quit")
+    print("6) View session record")
+    print("7) Quit")
 
 
 def main() -> None:
     random.seed()
+    stats = new_stats_tracker()
     print("Welcome to Card Game Hub!")
 
     while True:
         show_menu()
-        choice = input("Choose a game [1-6]: ").strip()
+        choice = input("Choose a game [1-7]: ").strip()
 
         if choice == "1":
-            play_blackjack()
+            record_result(stats, "blackjack", play_blackjack())
         elif choice == "2":
-            play_war()
+            record_result(stats, "war", play_war())
         elif choice == "3":
-            play_go_fish()
+            record_result(stats, "go_fish", play_go_fish())
         elif choice == "4":
-            play_five_card_poker()
+            record_result(stats, "five_card_poker", play_five_card_poker())
         elif choice == "5":
-            play_baccarat()
+            result = play_baccarat()
+            if result == "invalid":
+                print("No result recorded for Baccarat.")
+            else:
+                record_result(stats, "baccarat", result)
         elif choice == "6":
+            print_stats(stats)
+        elif choice == "7":
             print("Goodbye!")
             return
         else:
-            print("Invalid choice. Please select 1, 2, 3, 4, 5, or 6.")
+            print("Invalid choice. Please select 1, 2, 3, 4, 5, 6, or 7.")
 
 
 if __name__ == "__main__":
